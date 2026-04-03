@@ -238,7 +238,7 @@ const PROXY  = 'https://corsproxy.io/?';
 const ETF_SYMS    = ['SPY','QQQ','IWM'];
 const CRYPTO_SYMS = ['BTC/USD','ETH/USD','SOL/USD','XRP/USD','DOGE/USD'];
 
-let KEY='', SECRET='', sigs={}, pend={}, orders=[], barsCache={};
+let KEY='', SECRET='', sigs={}, pend={}, orders=[], barsCache={}, positions={};
 
 const H = () => ({
   'APCA-API-KEY-ID':     KEY,
@@ -371,10 +371,23 @@ async function connect() {
       `<span>💰 Cash: <span>${cash}</span></span>
        <span>📈 Equity: <span>${equity}</span></span>
        <span>🏦 Cuenta: <span>Paper Trading</span></span>`;
+    await loadPositions();
     fetchData();
   } catch(e) {
     err('Error de conexión. Verificá tu internet y las claves API. (' + e.message + ')');
   }
+}
+
+// ── POSICIONES ─────────────────────────────────────────────────────
+async function loadPositions() {
+  try {
+    const r = await apiFetch(`${PAPER}/v2/positions`);
+    if (r.ok) {
+      const pos = await r.json();
+      positions = {};
+      pos.forEach(p => { positions[p.symbol] = p; });
+    }
+  } catch(e) { console.warn('positions:', e); }
 }
 
 // ── FETCH DATA ─────────────────────────────────────────────────────
@@ -516,27 +529,47 @@ function chartRangeLabel(prices) {
 
 // ── APROBAR ORDEN ──────────────────────────────────────────────────
 async function approve(sym, action, isCrypto=false) {
-  const side   = action==='COMPRA'?'buy':'sell';
-  const time   = new Date().toLocaleTimeString('es-AR');
-  const tcId   = 'tc-' + sym.replace('/','_');
-  const ab     = document.querySelector(`#${tcId} .ab`);
+  const side  = action==='COMPRA'?'buy':'sell';
+  const time  = new Date().toLocaleTimeString('es-AR');
+  const tcId  = 'tc-' + sym.replace('/','_');
+  const ab    = document.querySelector(`#${tcId} .ab`);
+
+  // Para VENTA: verificar que existe posición abierta
+  if (side === 'sell') {
+    await loadPositions();
+    if (!positions[sym]) {
+      if (ab) ab.innerHTML = `<div style="font-size:10px;color:#fcd34d;padding:6px;line-height:1.6">
+        ⚠ Sin posición abierta en ${sym}<br>
+        <span style="opacity:.7">Comprá primero para luego poder vender</span></div>`;
+      pend[sym] = false;
+      return;
+    }
+  }
+
   if (ab) ab.innerHTML = '<div style="font-size:10px;color:var(--muted);padding:6px">Enviando orden...</div>';
   try {
     const body = {
-      symbol:         sym,
-      notional:       '50',
+      symbol:        sym,
+      notional:      '50',
       side,
-      type:           'market',
-      time_in_force:  isCrypto ? 'gtc' : 'day'
+      type:          'market',
+      time_in_force: isCrypto ? 'gtc' : 'day'
     };
-    const r  = await apiFetch(`${PAPER}/v2/orders`, { method:'POST', body: JSON.stringify(body) });
-    const ok = r.ok;
-    logOrder(sym, action, time, ok?'✓ enviada':'✗ error');
+    const r = await apiFetch(`${PAPER}/v2/orders`, { method:'POST', body: JSON.stringify(body) });
     pend[sym] = false;
-    if (ab) ab.innerHTML = `<div style="font-size:10px;padding:6px;color:${ok?'#34d399':'#f87171'}">
-      ${ok?'✓ Orden enviada correctamente':'✗ Error al enviar la orden'}</div>`;
+    if (r.ok) {
+      logOrder(sym, action, time, '✓ enviada');
+      if (ab) ab.innerHTML = `<div style="font-size:10px;padding:6px;color:#34d399">✓ Orden enviada correctamente</div>`;
+      await loadPositions(); // actualizar posiciones tras la compra
+    } else {
+      let msg = `HTTP ${r.status}`;
+      try { const ed = await r.json(); msg = ed.message || ed.code || msg; } catch(_) {}
+      logOrder(sym, action, time, '✗ ' + msg);
+      if (ab) ab.innerHTML = `<div style="font-size:10px;color:#f87171;padding:6px;line-height:1.6">
+        ✗ ${msg}</div>`;
+    }
   } catch(e) {
-    logOrder(sym, action, time, '✗ error');
+    logOrder(sym, action, time, '✗ error de red');
     if (ab) ab.innerHTML = '<div style="font-size:10px;color:#f87171;padding:6px">✗ Error de conexión</div>';
   }
 }
@@ -564,7 +597,7 @@ function logOrder(sym, action, time, status) {
 
 // ── UTILS ──────────────────────────────────────────────────────────
 function disconnect() {
-  KEY='';SECRET='';orders=[];sigs={};pend={};barsCache={};
+  KEY='';SECRET='';orders=[];sigs={};pend={};barsCache={};positions={};
   show('cfg'); show('dash',false); show('hdrRight',false);
   show('alertBanner',false); show('infoBanner'); clrErr();
 }
