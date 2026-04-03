@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ALGO TRADER v2 · Alpaca Paper Trading</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#07070f;
+    --card:rgba(255,255,255,0.04);
+    --border:rgba(255,255,255,0.08);
+    --green:#10b981;--green-dim:rgba(16,185,129,0.15);--green-border:rgba(16,185,129,0.35);
+    --red:#ef4444;--red-dim:rgba(239,68,68,0.12);--red-border:rgba(239,68,68,0.3);
+    --amber:#f59e0b;--amber-dim:rgba(245,158,11,0.12);
+    --indigo:#6366f1;--indigo-dim:rgba(99,102,241,0.15);
+    --text:rgba(255,255,255,0.85);--muted:rgba(255,255,255,0.35);--faint:rgba(255,255,255,0.12);
+  }
+  body{
+    font-family:'DM Mono',monospace;
+    background:var(--bg);
+    background-image:radial-gradient(ellipse 80% 50% at 50% -10%,rgba(16,185,129,0.07),transparent),
+                     radial-gradient(ellipse 60% 40% at 80% 80%,rgba(99,102,241,0.05),transparent);
+    min-height:100vh;color:var(--text);padding:28px 20px;
+  }
+  .wrap{max-width:980px;margin:0 auto}
+
+  /* HEADER */
+  .hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:32px}
+  .logo{font-family:'Bebas Neue',sans-serif;font-size:42px;letter-spacing:6px;line-height:1;
+        background:linear-gradient(135deg,#fff 40%,rgba(16,185,129,0.7));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+  .sub{font-size:9px;color:var(--muted);letter-spacing:4px;margin-top:5px}
+  .hdr-right{text-align:right;font-size:11px}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--green);display:inline-block;animation:blink 2s infinite}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+  @keyframes up{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+  .fade{animation:up .35s ease}
+
+  /* CARDS */
+  .card{border-radius:16px;border:1px solid var(--border);background:var(--card);padding:20px}
+  input[type=text],input[type=password]{
+    width:100%;background:rgba(0,0,0,0.4);border:1px solid var(--faint);border-radius:10px;
+    padding:11px 14px;font-family:'DM Mono',monospace;font-size:13px;color:var(--text);
+    margin-bottom:10px;outline:none;transition:border .2s
+  }
+  input:focus{border-color:rgba(255,255,255,0.28)}
+  .lbl{font-size:9px;font-weight:700;color:var(--muted);letter-spacing:3px;text-transform:uppercase;margin-bottom:14px}
+
+  /* BUTTONS */
+  .btn{border-radius:10px;font-family:'DM Mono',monospace;font-weight:700;font-size:10px;
+       letter-spacing:2px;cursor:pointer;padding:11px 18px;transition:all .2s;border:none}
+  .btn-primary{background:var(--indigo-dim);border:1px solid rgba(99,102,241,.4);color:#a5b4fc;width:100%}
+  .btn-primary:hover{background:rgba(99,102,241,.28)}
+  .btn-sm{background:var(--card);border:1px solid var(--border);color:var(--muted)}
+  .btn-sm:hover{background:rgba(255,255,255,.08);color:var(--text)}
+  .btn-approve{flex:1;background:var(--green-dim);border:1px solid var(--green-border);color:#6ee7b7}
+  .btn-approve:hover{background:rgba(16,185,129,.28)}
+  .btn-ignore{flex:1;background:var(--card);border:1px solid var(--border);color:var(--muted)}
+  .btn-ignore:hover{background:var(--faint)}
+
+  /* CONFIG */
+  #cfg{max-width:440px;margin:0 auto}
+  .steps{margin-top:14px;border-radius:12px;border:1px solid rgba(255,255,255,.05);
+         background:rgba(255,255,255,.02);padding:16px}
+  .steps li{font-size:11px;color:var(--muted);padding:3px 0;display:flex;gap:10px;list-style:none}
+  .steps li .n{color:var(--faint);font-weight:700}
+  .hint{font-size:10px;color:var(--muted);text-align:center;margin-top:8px}
+
+  /* BANNERS */
+  .banner{border-radius:14px;padding:14px 18px;margin-bottom:18px;font-size:12px;animation:up .3s ease}
+  .banner-ok{border:1px solid var(--green-border);background:rgba(16,185,129,.08);color:#6ee7b7}
+  .banner-err{border:1px solid var(--red-border);background:var(--red-dim);color:#fca5a5}
+  .banner-info{border:1px solid rgba(245,158,11,.3);background:var(--amber-dim);color:#fcd34d}
+
+  /* GRID */
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  @media(max-width:700px){.grid{grid-template-columns:1fr}}
+
+  /* TICKER */
+  .tc{border-radius:16px;border:1px solid var(--border);background:var(--card);padding:18px;animation:up .4s ease;position:relative;overflow:hidden}
+  .tc.buy{border-color:var(--green-border);background:rgba(16,185,129,.04)}
+  .tc.sell{border-color:var(--red-border)}
+  .tc-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px}
+  .tc-sym{font-size:26px;font-weight:900;letter-spacing:-1px}
+  .tc-price{font-size:18px;font-weight:600;margin-top:2px}
+  .tc-chg{font-size:12px;font-weight:500;margin-top:1px}
+  .up{color:#34d399}.down{color:#f87171}
+  .badge{padding:4px 10px;border-radius:20px;font-size:9px;font-weight:700;letter-spacing:2px}
+  .b-buy{background:var(--green-dim);border:1px solid var(--green-border);color:#6ee7b7}
+  .b-sell{background:var(--red-dim);border:1px solid var(--red-border);color:#fca5a5}
+  .b-neutral{background:var(--amber-dim);border:1px solid rgba(245,158,11,.3);color:#fcd34d}
+  .reason{font-size:10px;color:var(--muted);background:rgba(255,255,255,.04);border-radius:10px;
+          padding:10px;line-height:1.7;margin-bottom:12px}
+  .metrics{display:flex;gap:12px;margin-top:6px;font-size:10px;color:var(--faint)}
+  .metrics b{color:rgba(255,255,255,.65)}
+  .ab{display:flex;gap:8px}
+
+  /* ACTION BAR */
+  .abar{display:flex;gap:10px;margin-top:14px}
+
+  /* ORDER LOG */
+  #olog{margin-top:18px;border-radius:16px;border:1px solid var(--border);background:var(--card);padding:18px;animation:up .4s ease}
+  .or{display:flex;justify-content:space-between;align-items:center;font-size:11px;
+      background:rgba(255,255,255,.04);border-radius:8px;padding:9px 14px;margin-bottom:6px}
+  .or-ok{color:#34d399}.or-err{color:#f87171}
+
+  /* LOADING */
+  .loading{grid-column:1/-1;text-align:center;padding:60px;color:var(--muted);font-size:11px;letter-spacing:4px}
+  .spinner{display:inline-block;width:20px;height:20px;border:2px solid var(--faint);
+           border-top-color:var(--green);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:12px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* FOOTER */
+  footer{margin-top:36px;text-align:center;font-size:9px;color:rgba(255,255,255,.12);letter-spacing:1px;line-height:2}
+
+  /* ACCOUNT BAR */
+  .acct-bar{display:flex;gap:20px;margin-bottom:18px;font-size:11px;color:var(--muted)}
+  .acct-bar span{color:var(--text);font-weight:700}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- HEADER -->
+  <div class="hdr">
+    <div>
+      <div class="logo">ALGO TRADER</div>
+      <div class="sub">SISTEMA SEMIAUTOMÁTICO · PAPER TRADING · ALPACA</div>
+    </div>
+    <div class="hdr-right" id="hdrRight" style="display:none">
+      <div style="display:flex;align-items:center;gap:6px;justify-content:flex-end;color:var(--green);font-size:11px;font-weight:700;letter-spacing:2px">
+        <span class="dot"></span> CONECTADO
+      </div>
+      <div id="acctLine" style="color:var(--muted);margin-top:3px;font-size:11px"></div>
+      <div id="updLine" style="color:var(--faint);margin-top:2px;font-size:10px"></div>
+    </div>
+  </div>
+
+  <!-- BANNERS -->
+  <div id="errBanner" class="banner banner-err fade" style="display:none"></div>
+  <div id="alertBanner" class="banner banner-ok fade" style="display:none"></div>
+  <div id="infoBanner" class="banner banner-info fade" style="display:none">
+    💡 <b>Modo demo activo</b> — Ingresá tus claves de Alpaca Paper Trading para ver señales en tiempo real
+  </div>
+
+  <!-- CONFIG -->
+  <div id="cfg">
+    <div class="card fade">
+      <div class="lbl">Conexión · Alpaca Paper Trading</div>
+      <input type="text"     id="apiKey"    placeholder="API Key ID  (empieza con PK...)"/>
+      <input type="password" id="apiSecret" placeholder="Secret Key"/>
+      <button class="btn btn-primary" onclick="connect()">CONECTAR CON ALPACA →</button>
+      <p class="hint">Paper Trading · Sin dinero real · Tus claves nunca se envían a ningún servidor</p>
+    </div>
+    <div class="steps card" style="margin-top:12px">
+      <div class="lbl">Cómo obtener las claves API</div>
+      <ol>
+        <li><span class="n">1.</span> app.alpaca.markets → Paper Trading</li>
+        <li><span class="n">2.</span> Dashboard principal → scrollear hasta "API Keys"</li>
+        <li><span class="n">3.</span> Clic en "Generate New Key"</li>
+        <li><span class="n">4.</span> Copiar Key ID y Secret Key aquí arriba</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="dash" style="display:none">
+    <div class="acct-bar" id="acctBar"></div>
+    <div class="grid" id="grid"><div class="loading"><div class="spinner"></div><br>ANALIZANDO MERCADO...</div></div>
+    <div class="abar">
+      <button class="btn btn-sm" onclick="fetchData()">↻ ACTUALIZAR SEÑALES</button>
+      <button class="btn btn-sm" onclick="disconnect()">DESCONECTAR</button>
+    </div>
+    <div id="olog" style="display:none">
+      <div class="lbl">Historial de Órdenes</div>
+      <div id="orows"></div>
+    </div>
+  </div>
+
+  <footer>
+    Sistema educativo · Solo Paper Trading · No constituye asesoramiento financiero<br>
+    Señales: SMA20 · SMA50 · RSI(14) · Órdenes fraccionadas $50 USD · Feed: IEX
+  </footer>
+</div>
+
+<script>
+// ── CONFIG ─────────────────────────────────────────────────────────
+const PAPER = 'https://paper-api.alpaca.markets';
+const DATA  = 'https://data.alpaca.markets';
+const SYMS  = ['SPY','QQQ','IWM'];
+// CORS proxy — resuelve el problema de file:// sin necesitar servidor local
+const PROXY = 'https://corsproxy.io/?';
+
+let KEY='', SECRET='', sigs={}, pend={}, orders=[];
+
+const H = () => ({
+  'APCA-API-KEY-ID':     KEY,
+  'APCA-API-SECRET-KEY': SECRET,
+  'Content-Type':        'application/json'
+});
+
+// fetch con proxy automático si falla directo
+async function apiFetch(url, opts={}) {
+  try {
+    const r = await fetch(url, {...opts, headers: H()});
+    if (r.status === 0 || !r.ok && r.type==='opaque') throw new Error('cors');
+    return r;
+  } catch(e) {
+    // reintenta con proxy CORS
+    const proxied = PROXY + encodeURIComponent(url);
+    return fetch(proxied, {...opts, headers: H()});
+  }
+}
+
+// ── INDICADORES ────────────────────────────────────────────────────
+const sma = (a,n) => a.length<n ? null : a.slice(-n).reduce((x,y)=>x+y,0)/n;
+
+function rsi(a, n=14) {
+  if (a.length < n+1) return null;
+  const ch = a.slice(-n-1).map((v,i,arr)=>i>0?v-arr[i-1]:0).slice(1);
+  const ag = ch.map(c=>c>0?c:0).reduce((x,y)=>x+y,0)/n;
+  const al = ch.map(c=>c<0?Math.abs(c):0).reduce((x,y)=>x+y,0)/n;
+  return al===0 ? 100 : 100 - 100/(1+ag/al);
+}
+
+function signal(closes) {
+  const s20=sma(closes,20), s50=sma(closes,50), r=rsi(closes);
+  const last=closes.at(-1), prev=closes.at(-2);
+  if (!s20||!s50||!r) return {type:'NEUTRAL',score:0,reason:'Datos insuficientes'};
+  let score=0, reas=[];
+  if (last>s20)    { score++;  reas.push('Precio > SMA20'); }
+  if (s20>s50)     { score++;  reas.push('SMA20 > SMA50 (tendencia ↑)'); }
+  if (r<70&&r>30)  { score++;  reas.push(`RSI neutro (${r.toFixed(1)})`); }
+  if (r<40)        { score+=2; reas.push(`RSI sobrevendido (${r.toFixed(1)})`); }
+  if (r>70)        { score-=2; reas.push(`RSI sobrecomprado (${r.toFixed(1)})`); }
+  if (last>prev)   { score++;  reas.push('Momentum positivo'); }
+  const type = score>=4?'COMPRA':score<=1?'VENTA':'NEUTRAL';
+  return {type,score,reason:reas.join(' · '),sma20:s20,sma50:s50,rsi:r,last,
+          chg:(last-prev)/prev*100};
+}
+
+// ── CONECTAR ───────────────────────────────────────────────────────
+async function connect() {
+  KEY    = document.getElementById('apiKey').value.trim();
+  SECRET = document.getElementById('apiSecret').value.trim();
+  if (!KEY||!SECRET) { err('Ingresá el Key ID y el Secret Key'); return; }
+  clrErr(); show('infoBanner',false);
+  try {
+    const r = await apiFetch(`${PAPER}/v2/account`);
+    if (!r.ok) { err(`Credenciales inválidas (${r.status}). Verificá las claves.`); return; }
+    const acct = await r.json();
+    show('cfg',false); show('dash'); show('hdrRight');
+    const cash   = fmt(acct.cash);
+    const equity = fmt(acct.equity);
+    document.getElementById('acctLine').innerHTML =
+      `Capital: <b style="color:var(--text)">${cash}</b> · Equity: <b style="color:var(--text)">${equity}</b>`;
+    document.getElementById('acctBar').innerHTML =
+      `<span>💰 Cash: <span>${cash}</span></span>
+       <span>📈 Equity: <span>${equity}</span></span>
+       <span>🏦 Cuenta: <span>Paper Trading</span></span>`;
+    fetchData();
+  } catch(e) {
+    err('Error de conexión. Verificá tu internet y las claves API. (' + e.message + ')');
+  }
+}
+
+// ── FETCH DATA ─────────────────────────────────────────────────────
+async function fetchData() {
+  document.getElementById('grid').innerHTML =
+    '<div class="loading"><div class="spinner"></div><br>ANALIZANDO MERCADO...</div>';
+  show('alertBanner',false); clrErr();
+  sigs={}; pend={};
+  const end   = new Date().toISOString();
+  const start = new Date(Date.now()-100*24*60*60*1000).toISOString();
+  let buys=0;
+  for (const sym of SYMS) {
+    try {
+      const url = `${DATA}/v2/stocks/${sym}/bars?timeframe=1Day&start=${start}&end=${end}&limit=100&feed=iex`;
+      const r   = await apiFetch(url);
+      const d   = await r.json();
+      const bars = d.bars||[];
+      if (bars.length>2) {
+        sigs[sym] = signal(bars.map(b=>b.c));
+        pend[sym] = sigs[sym].type!=='NEUTRAL';
+        if (sigs[sym].type==='COMPRA') buys++;
+      }
+    } catch(e) { console.warn(sym,e); }
+  }
+  renderGrid();
+  document.getElementById('updLine').textContent =
+    'Actualizado: '+new Date().toLocaleTimeString('es-AR');
+  if (buys>0) {
+    show('alertBanner');
+    document.getElementById('alertBanner').innerHTML =
+      `⚡ <b>${buys} señal${buys>1?'es':''} de COMPRA detectada${buys>1?'s':''}</b> — Revisá y aprobá cada operación abajo`;
+  }
+}
+
+// ── RENDER ─────────────────────────────────────────────────────────
+function renderGrid() {
+  const g = document.getElementById('grid');
+  g.innerHTML = '';
+  for (const sym of SYMS) {
+    const s=sigs[sym]; if(!s) continue;
+    const up = s.chg>=0;
+    const tcls = s.type==='COMPRA'?'buy':s.type==='VENTA'?'sell':'';
+    const bcls = s.type==='COMPRA'?'b-buy':s.type==='VENTA'?'b-sell':'b-neutral';
+    const ico  = s.type==='COMPRA'?'▲':s.type==='VENTA'?'▼':'◆';
+    const btns = (s.type!=='NEUTRAL'&&pend[sym]) ? `
+      <div class="ab">
+        <button class="btn btn-approve" onclick="approve('${sym}','${s.type}')">✓ APROBAR ORDEN</button>
+        <button class="btn btn-ignore"  onclick="ignore('${sym}')">✕ IGNORAR</button>
+      </div>` : '';
+    g.innerHTML += `
+      <div class="tc ${tcls} fade" id="tc-${sym}">
+        <div class="tc-top">
+          <div>
+            <div class="tc-sym">${sym}</div>
+            <div class="tc-price">$${s.last?.toFixed(2)||'—'}</div>
+            <div class="tc-chg ${up?'up':'down'}">${up?'+':''}${s.chg?.toFixed(2)||'0.00'}%</div>
+          </div>
+          <span class="badge ${bcls}">${ico} ${s.type}</span>
+        </div>
+        <div class="reason">${s.reason}
+          <div class="metrics">
+            ${s.sma20?`<span>SMA20 <b>$${s.sma20.toFixed(2)}</b></span>`:''}
+            ${s.sma50?`<span>SMA50 <b>$${s.sma50.toFixed(2)}</b></span>`:''}
+            ${s.rsi?`<span>RSI <b>${s.rsi.toFixed(1)}</b></span>`:''}
+          </div>
+        </div>
+        ${btns}
+      </div>`;
+  }
+}
+
+// ── APROBAR ORDEN ──────────────────────────────────────────────────
+async function approve(sym, action) {
+  const side = action==='COMPRA'?'buy':'sell';
+  const time = new Date().toLocaleTimeString('es-AR');
+  const ab = document.querySelector(`#tc-${sym} .ab`);
+  if (ab) ab.innerHTML = '<div style="font-size:10px;color:var(--muted);padding:6px">Enviando orden...</div>';
+  try {
+    const r = await apiFetch(`${PAPER}/v2/orders`, {
+      method:'POST',
+      body: JSON.stringify({symbol:sym,notional:'50',side,type:'market',time_in_force:'day'})
+    });
+    const ok = r.ok;
+    logOrder(sym,action,time,ok?'✓ enviada':'✗ error');
+    pend[sym]=false;
+    if (ab) ab.innerHTML = `<div style="font-size:10px;padding:6px;color:${ok?'#34d399':'#f87171'}">
+      ${ok?'✓ Orden enviada correctamente':'✗ Error al enviar la orden'}</div>`;
+  } catch(e) {
+    logOrder(sym,action,time,'✗ error');
+    if (ab) ab.innerHTML = '<div style="font-size:10px;color:#f87171;padding:6px">✗ Error de conexión</div>';
+  }
+}
+
+function ignore(sym) {
+  pend[sym]=false;
+  document.querySelector(`#tc-${sym} .ab`)?.remove();
+}
+
+// ── ORDER LOG ──────────────────────────────────────────────────────
+function logOrder(sym,action,time,status) {
+  orders.unshift({sym,action,time,status});
+  show('olog');
+  document.getElementById('orows').innerHTML = orders.map(o=>`
+    <div class="or">
+      <b>${o.sym}</b>
+      <span class="badge ${o.action==='COMPRA'?'b-buy':'b-sell'}" style="font-size:9px">
+        ${o.action==='COMPRA'?'▲':'▼'} ${o.action}
+      </span>
+      <span style="color:var(--muted)">${o.time}</span>
+      <span class="${o.status.includes('✓')?'or-ok':'or-err'}">${o.status}</span>
+    </div>`).join('');
+}
+
+// ── UTILS ──────────────────────────────────────────────────────────
+function disconnect() {
+  KEY='';SECRET='';orders=[];sigs={};pend={};
+  show('cfg'); show('dash',false); show('hdrRight',false);
+  show('alertBanner',false); show('infoBanner'); clrErr();
+}
+const show  = (id,v=true) => document.getElementById(id).style.display = v?'block':'none';
+const err   = msg => { show('errBanner'); document.getElementById('errBanner').textContent='⚠ '+msg; };
+const clrErr= () => show('errBanner',false);
+const fmt   = v => '$'+parseFloat(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+</script>
+</body>
+</html>
